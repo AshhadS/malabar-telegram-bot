@@ -2,7 +2,8 @@ import os
 import requests
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
-
+import csv
+from pathlib import Path
 
 # Loads .env when running locally.
 # In GitHub Actions, values will come from GitHub Secrets instead.
@@ -40,6 +41,25 @@ def call_malabar_api():
     response.raise_for_status()
     return response.json()
 
+def save_response_to_csv(data):
+    csv_file = Path("gold_rates.csv")
+    file_exists = csv_file.exists()
+
+    row = {
+        "saved_at": datetime.now(KUWAIT_TZ).strftime("%Y-%m-%d %H:%M:%S"),
+        "location": "Salmiyah, Kuwait",
+        "gold_22kt": data.get("22kt", ""),
+        "gold_24kt": data.get("24kt", ""),
+        "rate_updated_time": data.get("updated_time", "")
+    }
+
+    with csv_file.open("a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=row.keys())
+
+        if not file_exists:
+            writer.writeheader()
+
+        writer.writerow(row)
 
 def format_message(data):
     """
@@ -87,6 +107,10 @@ def send_telegram_message(message):
 def main():
     try:
         data = call_malabar_api()
+
+        save_response_to_csv(data)
+        print("CSV saved successfully.")
+
         message = format_message(data)
         send_telegram_message(message)
         print("Telegram message sent successfully.")
